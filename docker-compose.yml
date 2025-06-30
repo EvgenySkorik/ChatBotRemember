@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_USER: jenia
+      POSTGRES_PASSWORD: jenia
+      POSTGRES_DB: RememberBot_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jenia -d RememberBot_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TELEGRAM_BOT_API_KEY: ${TELEGRAM_BOT_API_KEY}
+      POSTGRESQL_DATABASE_URL: postgresql+asyncpg://jenia:jenia@db:5432/RememberBot_db
+      SECRET_JWT_KEY: ${SECRET_JWT_KEY}
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -29,7 +29,7 @@ cp .env
 Заполните .env своими ключами:
 
 - TELEGRAM_BOT_API_KEY=ваш_ключ
-- POSTGRESQL_DATABASE_URL=postgresql://user:pass@db:5432/db_name
+- POSTGRESQL_DATABASE_URL=postgresql+asyncpg://admin:admin@localhost/remember_bot_db
 - SECRET_JWT_KEY=ваш_секрет
 Запустите:
 
@@ -37,6 +37,12 @@ bash
 ```
 docker-compose up --build
 ```
+### 2. Для Alembic
+
+В случае необходимости миграций не забудте поменять:
+
+- sqlalchemy.url = postgresql+asyncpg://admin:admin@localhost/remember_bot_db
+
 
 ⚙️ Настройки
 FastAPI: http://localhost:8000/docs

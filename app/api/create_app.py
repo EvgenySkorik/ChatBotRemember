@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     return app
 
 async def run_server():
+    """Запуск сервера"""
     config = uvicorn.Config(app, host=settings.UVICORN_HOST, port=settings.UVICORN_PORT, reload=True)
     server = uvicorn.Server(config=config)
     await server.serve()

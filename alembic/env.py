@@ -4,7 +4,10 @@ from sqlalchemy import engine_from_config, pool
 from app.models.db_models import Base
 from app.conf import settings
 import asyncio
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 config = context.config
 fileConfig(config.config_file_name) if config.config_file_name else None
 

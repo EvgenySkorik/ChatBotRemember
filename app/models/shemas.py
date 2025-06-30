@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 
 
 class RegistrationUserShema(BaseModel):
-    telegram_id: Optional[int] = Field(..., description="Telegram ID пользователя")
-    first_name: Optional[str] = Field(..., description="Имя")
-    last_name: Optional[str] = Field(..., description="Фамилия")
-    username: Optional[str] = Field(..., description="Никнейм")
+    telegram_id: Optional[int] = Field(None, description="Telegram ID пользователя")
+    first_name: Optional[str] = Field(None, description="Имя")
+    last_name: Optional[str] = Field(None, description="Фамилия")
+    username: Optional[str] = Field(None, description="Никнейм")
 
 class UserCreate(BaseModel):
     id: int

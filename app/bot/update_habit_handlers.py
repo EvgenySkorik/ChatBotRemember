@@ -2,13 +2,12 @@ from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.api.router import update_habit
 from app.bot.exceptions_handlers import InvalidInputError
 from app.bot.keyboards import InlineKeyboardRep, ReplyKeyboardRep
 from app.bot.messages import MU
-from app.models.shemas import HabitShema
 from app.services.loging import get_logger
 from app.bot.states import EditHabitStates
+from app.bot.api_client import call_api
 
 logger = get_logger("update_habit_loger")
 update_habit_router = Router()
@@ -78,23 +77,26 @@ async def process_get_goal_days(message: Message, state: FSMContext):
 
             data = await state.get_data()
             base_habit = data.get("original_title")
+            token = (await state.get_data()).get("token")
 
-            habit_model = await update_habit(
-                title=base_habit,
-                habit_data=HabitShema.model_validate(data),
-                telegram_id=message.from_user.id
+            logger.info(f"DATA V HENDLERE {data}")
+
+            habit_model = await call_api(
+                method="PUT",
+                endpoint=f"/habit/update?title={base_habit}&telegram_id={message.from_user.id}",
+                data=data,
+                token=token
             )
 
-            token = (await state.get_data()).get('token')
             await state.clear()
             await state.update_data(token=token)
 
             await message.answer(
-                MU.habit_updated(base_habit, habit_model.title),
+                MU.habit_updated(base_habit, habit_model["title"]),
                 reply_markup=ReplyKeyboardRep.start_keyboard()
             )
         else:
             await message.answer(MU.habit_goal_days_is_digit())
-
+    #
     except InvalidInputError as e:
         await message.answer(MU.wrong_input(e.user_message))

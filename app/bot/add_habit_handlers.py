@@ -1,9 +1,7 @@
-from typing import List
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from app.api.router import add_habit, get_all_habits_by_user
 from app.bot.exceptions_handlers import InvalidInputError
 from app.bot.keyboards import ReplyKeyboardRep, InlineKeyboardRep
 from app.bot.messages import MU
@@ -11,6 +9,8 @@ from app.models.shemas import HabitShema, HabitShemaOUT
 from app.services.loging import get_logger
 from app.bot.states import AddHabitStates
 from app.services.scheduler import schedule_habit
+from app.bot.api_client import call_api
+from app.models.db_models import HabitModel
 
 logger = get_logger("add_habit_bot_loger")
 add_habit_router = Router()
@@ -29,7 +29,17 @@ async def handle_add_habit(message: Message, state: FSMContext):
 async def process_get_habit_name(message: Message, state: FSMContext):
     """Обработчик получения названия привычки"""
     try:
-        habits: List[HabitShemaOUT] = await get_all_habits_by_user(message.from_user.id)
+        token = (await state.get_data()).get("token")
+        habits_d = await call_api(
+            method="GET",
+            endpoint=f"/habit/habits?telegram_id={message.from_user.id}",
+            token=token
+        )
+
+        habits_d_shema = [HabitShemaOUT.model_validate(habit, from_attributes=True) for habit in habits_d]
+
+        habits = [HabitModel(**h.model_dump(exclude={"trackings"})) for h in habits_d_shema]
+
         existing_habit = [habit for habit in habits if habit.title.lower() == message.text.lower()]
 
         if not existing_habit:
@@ -74,16 +84,21 @@ async def handle_number_selection(call: CallbackQuery, state: FSMContext):
 @add_habit_router.message(AddHabitStates.goal_days)
 async def process_get_goal_days(message: Message, state: FSMContext):
     """Обработчик получения для формирования количества дней
-       Запуск функции добавления в базу сформированной модели привычки"""
+       Запуск функции добавления в базу сформированной модели привычки,
+       создаёт напоминание"""
     try:
         if message.text.isdigit():
             await state.update_data(goal_days=message.text)
             data = await state.get_data()
 
-            habit_model = await add_habit(
-                habit_data=HabitShema.model_validate(data),
-                telegram_id=message.from_user.id
+            token = (await state.get_data()).get("token")
+            habits_d = await call_api(
+                method="POST",
+                endpoint=f"/habit/add?telegram_id={message.from_user.id}",
+                data=data,
+                token=token
             )
+            habit_model = HabitModel(**habits_d)
 
             await schedule_habit(
                 habit_id=habit_model.id,

@@ -69,36 +69,69 @@ def generate_cron(frequency: str) -> dict:
     else:
         raise ValueError(f"Неизвестный период: {period}")
 
+
 async def schedule_habit(habit_id: int, chat_id: int, habit_title: str, frequency: str):
     """Добавляет напоминание для привычки."""
-    cron = generate_cron(frequency)
-    # manual_cron = {
-    #     'second': '*/30',  # Каждую минуту
-    #     'hour': '*'  # Любой час
-    # }
-    scheduler.add_job(
-        send_reminder,
-        "cron",
-        args=[chat_id, habit_title],
-        id=f"habit_{habit_id}",
-        # **manual_cron
-        **cron
+    job_id = f"habit_{habit_id}"
+    try:
+        cron_config = generate_cron(frequency)
+        manual_cron = {
+            'second': '*/30',  # Каждую минуту
+            'hour': '*'  # Любой час
+        }
+        scheduler.add_job(
+            send_reminder,
+            'cron',
+            id=job_id,
+            **manual_cron,
+            **cron_config,
+            args=[chat_id, habit_title],
+            replace_existing=True
+        )
+        logger.info(f"JOB ADDED: habit_{habit_id}")
+    except Exception as e:
+        logger.error(f"Scheduling error: {str(e)}")
+
+
+async def send_reminder(chat_id: int, title: str):
+    """Отправка напоминания"""
+    current_jobs = [j.id for j in scheduler.get_jobs()]
+    logger.info(f"ACTIVE JOBS AT EXECUTION: {current_jobs}")
+
+    bot = get_bot()
+    await bot.send_message(
+        chat_id,
+        f"⏰ Напоминание: {title}",
+        reply_markup=InlineKeyboardRep.reminder_keyboard(title)
     )
-    logger.info(f"Добавлена задача habit_{habit_id} с параметрами: {cron}")
+
 
 async def remove_habit_reminder(habit_id: int):
     """Удаляет напоминание привычки."""
-    scheduler.remove_job(f"habit_{habit_id}")
+    job_id = f"habit_{habit_id}"
+    try:
+        if scheduler.get_job(job_id):
+            scheduler.remove_job(job_id)
+            logger.info(f"Задача {job_id} удалена")
+        else:
+            logger.warning(f"Задача {job_id} уже отсутствует в шедулере")
+    except Exception as e:
+        logger.error(f"Критическая ошибка при удалении {job_id}: {str(e)}")
+        for job in scheduler.get_jobs():
+            if job.id == job_id:
+                job.remove()
+                logger.info(f"Задача {job_id} удалена через перебор")
+                break
 
-async def send_reminder(chat_id: int, habit_title: str):
-    """Отправляет уведомление."""
-    bot = get_bot()
-    if bot:
-        keyboard = InlineKeyboardRep.reminder_keyboard(habit_title)
-        await bot.send_message(chat_id, f"⏰ Напоминаем о привычке:\n\nВы уже сегодня {habit_title}?", reply_markup=keyboard)
-        logger.info("Уведомление отправлено")
 
-
-
-
-
+def get_active_jobs():
+    """Синхронное получение задач"""
+    return [
+        {
+            "id": job.id,
+            "name": job.func.__name__,
+            "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+            "args": job.args
+        }
+        for job in scheduler.get_jobs()
+    ]

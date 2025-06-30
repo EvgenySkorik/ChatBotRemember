@@ -1,55 +1,41 @@
 from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
-from app.api.repository import HabitRep
-from app.api.router import add_tracking, get_habit
-from app.bot.exceptions_handlers import NotFoundError, DatabaseError, InvalidInputError
-from app.bot.keyboards import ReplyKeyboardRep
 from app.bot.messages import MU
-from app.models.shemas import TrackingShemaOUT
 from app.services.loging import get_logger
+from app.bot.api_client import call_api
+from app.services.scheduler import remove_habit_reminder
 
 logger = get_logger("trackings_habit_loger")
 trackings_router = Router()
 
 
 @trackings_router.callback_query(F.data.startswith("mark_"))
-async def edit_habit_callback(call: CallbackQuery):
+async def edit_habit_callback(call: CallbackQuery, state: FSMContext):
     """Обработчик кнопки отметки выполнения привычки
-        Запуск скрипта выполнения привычки"""
+        Запуск скрипта выполнения привычки, удаляет cron"""
     habit_title = call.data.replace("mark_", "")
-    user_id = call.from_user.id
-
+    token = (await state.get_data()).get("token")
     try:
-        habit = await get_habit(habit_title, user_id)
-        if not habit:
-            raise NotFoundError("привычка")
-
-        result, is_completed = await add_tracking(habit_title, user_id)
-
-        if is_completed:
-            await call.answer(MU.habit_done_and_deleted(habit_title))
-            await call.message.answer(
-                text=MU.habit_congratulations(habit_title),
-                parse_mode=MU.HTML,
-                reply_markup=ReplyKeyboardRep.start_keyboard()
-            )
-            return
-
-        if result is not None:
-            await call.answer(MU.habit_remind(habit_title))
-
-            if habit.frequency:
-                count_str, _, period = habit.frequency.partition(" в ")
-                remaining = await HabitRep.get_remaining_today(user_id, habit_title, count_str)
-                if remaining > 0:
-                    await call.message.answer(MU.count_remind(remaining))
-            return
-
-        await call.answer(
-            MU.habit_limit_error(habit_title, habit.frequency),
-            show_alert=True
+        response = await call_api(
+            method="POST",
+            endpoint="/tracking/add",
+            data={"habit_title": habit_title, "telegram_id": call.from_user.id},
+            token=token
         )
+        logger.info(f"RESP IN mark{response}")
+        if response.get("result"):
+            await call.answer(MU.habit_remind(habit_title))
+            if response.get("is_completed"):
+                await call.message.answer(MU.habit_finished(habit_title))
+                await remove_habit_reminder(response.get("result").get("habit_id"))
+        else:
+            await call.answer(
+                MU.habit_limit_error(habit_title, response.get('limit', '')),
+                show_alert=True
+            )
 
-    except InvalidInputError as e:
-        await call.answer(f"🛑 {e.user_message}", show_alert=True)
+    except Exception as e:
+        logger.error(f"Mark error: {str(e)}")
+        await call.answer("Ошибка при отметке", show_alert=True)

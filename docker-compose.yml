@@ -1,35 +1,68 @@
 version: '3.8'
 
 services:
-  db:
+  api-db:
     image: postgres:13-alpine
+    env_file: .env
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: remember_bot_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - api_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d remember_bot_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d remember_bot_db"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  app:
-    build: .
-    depends_on:
-      db:
-        condition: service_healthy
+  alembic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
     environment:
-      TELEGRAM_BOT_API_KEY: ${TELEGRAM_BOT_API_KEY}
-      POSTGRESQL_DATABASE_URL: postgresql+asyncpg://admin:admin@db:5432/remember_bot_db
-      SECRET_JWT_KEY: ${SECRET_JWT_KEY}
-    ports:
-      - "8000:8000"
+      IN_DOCKER: ${IN_DOCKER}
+      POSTGRESQL_DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@api-db:5432/remember_bot_db"
+      ALEMBIC_MIGRATIONS_PATH: ${ALEMBIC_MIGRATIONS_PATH:-migrations}
+    command: >
+      sh -c "sleep 5 &&
+      alembic upgrade head"
 
-    restart: unless-stopped
+    depends_on:
+      api-db:
+        condition: service_healthy
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      IN_DOCKER: ${IN_DOCKER}
+      POSTGRESQL_DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@api-db:5432/remember_bot_db"
+      SECRET_JWT_KEY: ${SECRET_JWT_KEY}
+      UVICORN_PORT: ${UVICORN_PORT}
+    command: uvicorn app.api.create_app:app --host 0.0.0.0 --port ${UVICORN_PORT}
+    ports:
+      - "${UVICORN_PORT}:${UVICORN_PORT}"
+    depends_on:
+      alembic:
+        condition: service_completed_successfully
+
+  bot:
+    build: .
+    env_file: .env
+    environment:
+      SQL_DATABASE_BOT_URL: "sqlite:///data/bot.db"
+
+    command: python app/bot/create_bot.py
+    depends_on:
+      api:
+        condition: service_started
+    volumes:
+      - bot_data:/data
 
 volumes:
-  postgres_data:
+  api_data:
+  bot_data:

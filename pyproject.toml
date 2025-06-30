@@ -27,6 +27,8 @@ sqlalchemy = "2.0.41"
 uvicorn = "0.34.3"
 alembic = "^1.16.2"
 asyncpg = "^0.30.0"
+httpx = "^0.28.1"
+aiosql = "^13.4"
 
 
 [build-system]

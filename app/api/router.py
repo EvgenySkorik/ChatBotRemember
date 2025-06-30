@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, FastAPI, Query, Body
-from typing import Annotated, List
+from typing import Annotated, List, Dict, Any
 from contextlib import asynccontextmanager
 
 from app.api.repository import UserRep, HabitRep, TrackingsRep
@@ -43,7 +43,7 @@ AuthDEP = Depends(AuthService.verify_token_fastapi)
 
 
 @router_users.post("/registration", summary="Регистрация")
-async def registration_user(user: Annotated[RegistrationUserShema, Depends()]) -> int:
+async def registration_user(user: RegistrationUserShema):
     """Регистрируем и добавляем пользователя"""
     user_id = await UserRep.registration_user(user)
     return user_id
@@ -61,7 +61,7 @@ async def add_user(
 
 @router_habits.post("/add", summary="Добавить", dependencies=[AuthDEP])
 async def add_habit(
-        habit_data: HabitShema,
+        habit_data: dict,
         telegram_id: int
 ) -> HabitShemaOUT:
     """Добавляем привычку"""
@@ -97,20 +97,22 @@ async def delete_habit(
 @router_habits.put("/update", summary="Обновить", dependencies=[AuthDEP])
 async def update_habit(
         title: str = Query(..., description="Наименование привычки"),
-        habit_data: HabitShema = Body(..., description="Данные для обновления привычки"),
+        habit_data: dict = Body(..., description="Данные для обновления привычки"),
         telegram_id: int = Query(..., description="Telegram ID пользователя")
 ) -> HabitShemaOUT:
     """Обновляем привычку"""
     habit = await HabitRep.update_habit(title, habit_data, telegram_id)
-    return habit
+    return habit.model_dump()
 
 # Ручки по отслеживанию
 @router_trackings.post("/add", summary="Добавить", dependencies=[AuthDEP])
 async def add_tracking(
-        habit_title: str = Query(..., description="Наименование привычки"),
-        telegram_id: int = Query(..., description="Telegram ID пользователя")
-) -> tuple[TrackingShemaOUT | None, bool]:
+        habit_title: str = Body(..., embed=True),
+        telegram_id: int = Body(...)
+) -> dict:
     """Добавляем трек"""
-    track = await TrackingsRep.add_tracking(habit_title, telegram_id)
-    return track
+    result = await TrackingsRep.add_tracking(habit_title, telegram_id)
+    return result
+
+
 

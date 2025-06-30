@@ -1,5 +1,4 @@
-from asyncio import timeout
-
+import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -16,7 +15,6 @@ from app.bot.update_habit_handlers import update_habit_router
 from app.conf import settings
 from app.services.loging import get_logger
 from app.services.scheduler import scheduler
-
 from app.services.security import AuthMiddleware
 
 test_logger = get_logger("setup_test")
@@ -42,3 +40,5 @@ async def run_bot():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
+if __name__ == "__main__":
+    asyncio.run(run_bot())

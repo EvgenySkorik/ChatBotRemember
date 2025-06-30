@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # PosgresQL Database
     URL: str = os.getenv('POSTGRESQL_DATABASE_URL')
 
+    # SQL Bot Database
+    URL_BOT: str = os.getenv('SQL_DATABASE_BOT_URL')
+
+    API_URL: str = "http://api:8000" if os.getenv("IN_DOCKER") else "http://localhost:8000"
+    IN_DOCKER: bool = False
 
 
 settings = Settings()

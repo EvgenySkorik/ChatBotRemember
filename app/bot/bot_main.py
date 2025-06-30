@@ -3,8 +3,6 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-from app.api.repository import UserRep
-from app.api.router import registration_user
 from app.bot.exceptions_handlers import NotFoundError
 from app.bot.keyboards import ReplyKeyboardRep
 from app.bot.messages import MU
@@ -13,6 +11,7 @@ from app.models.shemas import RegistrationUserShema
 from app.services.loging import get_logger
 from app.services.security import AuthService
 from app.bot.states import CommonState
+from app.bot.api_client import call_api
 
 logger = get_logger("bot_loger")
 start_router = Router()
@@ -29,7 +28,16 @@ async def cmd_start(message, state: FSMContext):
         last_name=message.from_user.last_name,
         username=message.from_user.username
     )
-    await registration_user(user_shema)
+    user_dump = user_shema.model_dump()
+
+    token = (await state.get_data()).get("token")
+    user = await call_api(
+        method="POST",
+        endpoint=f"/user/registration",
+        data=user_dump,
+        token=token
+    )
+
 
     access_token = AuthService.create_access_token(
         data={"sub": message.from_user.id},
